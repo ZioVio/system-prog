@@ -28,7 +28,7 @@ void process_files(int input_fd, int ouput_fd);
 int main(int argc, const char * argv[]) {
     if (argc < 3) {
         fprintf(stderr, "Expected at least 3 arguments\n");
-        FAIL();
+        exit(EXIT_FAILURE);
     }
     const char * input_file_name = argv[1];
     const char * output_file_name = argv[2];
@@ -82,7 +82,7 @@ void process_files(int input_fd, int ouput_fd) {
         }
     } while (read_on_iteration > 0);
 
-    char total_info_buffer[BUFFER_SIZE] = {' '};
+    char total_info_buffer[BUFFER_SIZE] = {'\0'};
     sprintf(
         total_info_buffer, 
         "\nTotal bytes read: %ld\nTotal bytes written: %ld\n", 
@@ -90,7 +90,7 @@ void process_files(int input_fd, int ouput_fd) {
         total_written_bytes 
     );
 
-    int total_info_written_length = write(ouput_fd, total_info_buffer, BUFFER_SIZE);
+    int total_info_written_length = write(ouput_fd, &total_info_buffer, strlen(total_info_buffer));
     if (total_info_written_length < 0) {
         fprintf(stderr, "Failed to write total info");
         FAIL();
