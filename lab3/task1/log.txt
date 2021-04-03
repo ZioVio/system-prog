@@ -1,0 +1,34 @@
+Start with PID: 15096
+In cycle 0
+In cycle 1
+code: 0
+erno: 0, Success
+pid: 11761
+uid: 1000
+status: 1993376
+band: 4294967307761
+In cycle 2
+In cycle 3
+code: 0
+erno: 0, Success
+pid: 11761
+uid: 1000
+status: 1993376
+band: 4294967307761
+In cycle 4
+code: 0
+erno: 0, Success
+pid: 11761
+uid: 1000
+status: 1993376
+band: 4294967307761
+In cycle 5
+code: 0
+erno: 0, Success
+pid: 11761
+uid: 1000
+status: 1993376
+band: 4294967307761
+In cycle 6
+In cycle 7
+In cycle 8
