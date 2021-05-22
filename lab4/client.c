@@ -59,7 +59,7 @@ int main(void) {
         recv_bytes = recv(sockfd, recv_buff, sizeof(recv_buff) - 1, 0);
         recv_buff[recv_bytes] = '\0';
         printf("Response from server: \n%s\n", recv_buff);
-    } while(strcmp(send_buff, "close") != 0);
+    } while(strcmp(send_buff, "close\n") != 0);
 
     close(sockfd);
     return 0;
