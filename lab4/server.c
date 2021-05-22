@@ -127,7 +127,7 @@ void child_proc(int fd)
             pid_t fork_id = fork();
             if (fork_id < 0)
             {
-                const msg = "Child proc server: failed to fork";
+                const char *msg = "Child proc server: failed to fork";
                 write(fd, msg, strlen(msg));
                 close(client_socket_fd);
                 FAIL();
@@ -141,7 +141,7 @@ void child_proc(int fd)
             }
             else
             {
-                const msg = "Child proc server - Main: forked client finished\n";
+                const char *msg = "Child proc server - Main: forked client finished\n";
                 write(fd, msg, strlen(msg));
                 close(client_socket_fd);
             }
@@ -174,7 +174,7 @@ void on_client(int client_socket_fd, int fd)
         if (recvbytes <= 0)
         {
             const char *msg = "Server fork: no message on request\n";
-write(fd, msg, strlen(msg));
+            write(fd, msg, strlen(msg));
             continue;
         }
 
@@ -189,7 +189,7 @@ write(fd, msg, strlen(msg));
         is_server_running = strcmp(recv_buff, CLIENT_EXIT_COMMAND) != 0;
     } while (is_server_running);
 
-    const msg = "Server fork: CLOSE\n";
+    const char *msg = "Server fork: CLOSE\n";
     write(fd, msg, strlen(msg));
     close(client_socket_fd);
 }
