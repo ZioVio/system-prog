@@ -4,75 +4,87 @@
 #include <time.h>
 
 #include <unistd.h>
-/* fork(), getpid(), setsid(), open(), close(), write() */
 #include <fcntl.h>
-/* open() */
 #include <sys/types.h>
-/* pid_t, size_t */
 
 #include <netinet/in.h>
-/* struct sockaddr_in, struct in_addr */
 #include <sys/socket.h>
-/* accept(), bind(), listen(), recv(), send() */
 #include <arpa/inet.h>
-/* htons, htonl */
+#include <errno.h>
 
-void parentProcess(int fd);
-void childProcess(int fd);
-void processClient(int client_sockfd, int fd);
+#define BUFLEN 1024
+#define CLIENT_EXIT_COMMAND "CLOSE"
 
+void parent_proc(int fd);
+void child_proc(int fd);
+void on_client(int client_socket_fd, int fd);
 
-int main(void) {
-    int fd;
-    pid_t fork_id;
+void PRINT_ERRNO()
+{
+    fprintf(stderr, "\nError ocurred: %d: %s\n", errno, strerror(errno));
+}
 
-    fd = open("test.log", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd == -1) {
-      printf("Error while opening test.log for writing (initial)\n");
-      return -1;
+void FAIL()
+{
+    PRINT_ERRNO();
+    exit(EXIT_FAILURE);
+}
+
+const char *LOG_FILENAME = "file.log";
+
+int main(void)
+{
+    int fd = open(LOG_FILENAME, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1)
+    {
+        fprintf(stderr, "Error while opening %s for writing (initial)\n", LOG_FILENAME);
+        FAIL();
     }
-    write(fd, "PROGRAM STARTED...\n", strlen("PROGRAM STARTED...\n"));
+    const char *startlog = "Server started\n";
+    write(fd, startlog, strlen(startlog));
 
-    // daemoning
-    fork_id = fork();
-    if (fork_id < 0) {
-        write(fd, "Error occured while trying to fork()\n",
-        strlen("Error occured while trying to fork()\n"));
+    pid_t fork_id = fork();
+    if (fork_id < 0)
+    {
+        fprintf(stderr, "Failed to fork");
         close(fd);
+        FAIL();
     }
-    else if (fork_id == 0) {
-        childProcess(fd);
+    else if (fork_id == 0)
+    {
+        child_proc(fd);
     }
-    else {
-        // fork_id > 0 - it's child's ID
-        parentProcess(fd);
+    else
+    {
+        parent_proc(fd);
     }
 
     // End of program
     close(fd);
-    printf("\n\nMAIN SERVER: I'm done\n");
+    printf("\n\nChild proc server - Main: I'm done\n");
     return 0;
 }
 
-void parentProcess(int fd) {
-    write(fd, "The child has been created, exiting now...\n",
-    strlen("The child has been created, exiting now...\n"));
+void parent_proc(int fd)
+{
+    const char *msg = "Create child, exiting\n";
+    write(fd, msg, strlen(msg));
     close(fd);
     exit(EXIT_SUCCESS);
 }
 
-void childProcess(int fd) {
-    int newSid;
-    char temp[100];
+void child_proc(int fd)
+{
+    int newsid = setsid();
+    char buf[BUFLEN];
     struct sockaddr_in sa_in;
     int sockfd;
-    int client_sockfd;
+    int client_socket_fd;
     struct sockaddr_in client_sa_in;
     int client_sa_in_size;
-    int fork_id;
 
-    newSid = setsid();
-    if (newSid == -1) {
+    if (newsid == -1)
+    {
         printf("Error while calling setsid()\n");
     }
 
@@ -81,91 +93,103 @@ void childProcess(int fd) {
     sa_in.sin_port = htons(3216);
 
     sockfd = socket(PF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
-        write(fd, "MAIN SERVER: ERROR when opening socket...\n",
-        strlen("MAIN SERVER: ERROR when opening socket...\n"));
+    if (sockfd == -1)
+    {
+        const char *msg = "Child proc server - Main: ERROR when opening socket\n";
+        write(fd, msg, strlen(msg));
         close(fd);
-        exit(EXIT_FAILURE);
+        FAIL();
     }
-    if (bind(sockfd, (struct sockaddr *)&sa_in, sizeof(sa_in)) == -1) {
-        write(fd, "MAIN SERVER: ERROR when binding...\n",
-        strlen("MAIN SERVER: ERROR when binding...\n"));
+    if (bind(sockfd, (struct sockaddr *)&sa_in, sizeof(sa_in)) == -1)
+    {
+        const char *msg = "Child proc server - Main: ERROR when binding\n";
+        write(fd, msg, strlen(msg));
         close(fd);
-        exit(EXIT_FAILURE);
+        FAIL();
     }
 
-    sprintf(temp, "[%d] MAIN SERVER: Starting listening...\n", getpid());
-    write(fd, temp, strlen(temp));
+    sprintf(buf, "[%d] Child proc server - Main: Starting listening\n", getpid());
+    write(fd, buf, strlen(buf));
 
     listen(sockfd, 5);
     client_sa_in_size = sizeof(client_sa_in);
 
-    while(1) {
-        client_sockfd = accept(sockfd, (struct sockaddr *)&client_sa_in, &client_sa_in_size);
-        if (client_sockfd < 0) {
-            write(fd, "MAIN SERVER: ERROR on acception connection from the client...\n",
-            strlen("MAIN SERVER: ERROR on acception connection from the client...\n"));
+    while (1)
+    {
+        client_socket_fd = accept(sockfd, (struct sockaddr *)&client_sa_in, &client_sa_in_size);
+        if (client_socket_fd < 0)
+        {
+            const char *msg = "Child proc server - Main: failed to establish connection\n";
+            write(fd, msg, strlen(msg));
         }
-        else {
-            // new process for this client
-            fork_id = fork();
-            if (fork_id < 0) {
-                write(fd, "MAIN SERVER: Error occured while trying to fork() for client\n",
-                strlen("MAIN SERVER: Error occured while trying to fork() for client\n"));
-                close(client_sockfd);
+        else
+        {
+            pid_t fork_id = fork();
+            if (fork_id < 0)
+            {
+                const msg = "Child proc server: failed to fork";
+                write(fd, msg, strlen(msg));
+                close(client_socket_fd);
+                FAIL();
             }
-            else if (fork_id == 0) {
+            else if (fork_id == 0)
+            {
                 close(sockfd);
-                processClient(client_sockfd, fd);
+                on_client(client_socket_fd, fd);
                 close(fd);
                 exit(EXIT_SUCCESS);
             }
-            else {
-                write(fd, "MAIN SERVER: fork()'ed for client successfully\n",
-                strlen("MAIN SERVER: fork()'ed for client successfully\n"));
-                close(client_sockfd);
-            } 
+            else
+            {
+                const msg = "Child proc server - Main: forked client finished\n";
+                write(fd, msg, strlen(msg));
+                close(client_socket_fd);
+            }
         }
     }
 
     close(fd);
 }
 
-void processClient(int client_sockfd, int fd) {
-    int newSid;
-    char recv_buff[1024];
-    int recv_bytes;
-    char send_buff[1024];
-    int send_bytes;
-    /* tmp variables for current time */
+void on_client(int client_socket_fd, int fd)
+{
+    int newSid = setsid();
+    char recv_buff[BUFLEN];
+    int recvbytes;
+    char sendbuff[BUFLEN];
+    int sendbytes;
     time_t rawtime;
     struct tm cur_time;
+    int is_server_running = 1;
 
-    // setsid()
-    newSid = setsid();
-    if (newSid == -1) {
+    if (newSid == -1)
+    {
         printf("Error while calling setsid()\n");
     }
 
-    do {
-        recv_bytes = recv(client_sockfd, recv_buff, sizeof(recv_buff) - 1, 0);
-        recv_buff[recv_bytes] = '\0';
-        if (recv_bytes <= 0) {
-            write(fd, "PROCESSING SERVER: empty request received, skipping it\n",
-            strlen("PROCESSING SERVER: empty request received, skipping it\n"));
+    do
+    {
+        recvbytes = recv(client_socket_fd, recv_buff, sizeof(recv_buff) - 1, 0);
+        recv_buff[recvbytes] = '\0';
+        if (recvbytes <= 0)
+        {
+            const char *msg = "Server fork: no message on request\n";
+write(fd, msg, strlen(msg));
             continue;
         }
 
         time(&rawtime);
-        cur_time = (* localtime(&rawtime));
-        send_bytes = sprintf(send_buff, "PID: [%d] on %sYour message:%s", getpid(), asctime(&cur_time), recv_buff);
-        if (send(client_sockfd, send_buff, send_bytes, 0) == -1) {
-            write(fd, "PROCESSING SERVER: failed to perform send() to client\n",
-            strlen("PROCESSING SERVER: failed to perform send() to client\n"));
+        cur_time = *localtime(&rawtime);
+        sendbytes = sprintf(sendbuff, "PID: [%d] on %s\nMessage:%s", getpid(), asctime(&cur_time), recv_buff);
+        if (send(client_socket_fd, sendbuff, sendbytes, 0) == -1)
+        {
+            const char *msg = "Server fork: failed to send data to client\n";
+            write(fd, msg, strlen(msg));
         }
-    } while (strcmp(recv_buff, "close") != 0);
+        is_server_running = strcmp(recv_buff, CLIENT_EXIT_COMMAND) != 0;
+    } while (is_server_running);
 
-    write(fd, "PROCESSING SERVER: <close> command received, finishing communication with him\n",
-    strlen("PROCESSING SERVER: <close> command received, finishing communication with him\n"));
-    close(client_sockfd);
+    const msg = "Server fork: CLOSE\n";
+    write(fd, msg, strlen(msg));
+    close(client_socket_fd);
 }
